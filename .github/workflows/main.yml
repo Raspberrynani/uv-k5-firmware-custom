@@ -3,22 +3,43 @@ name: Build Firmware
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build ${{ matrix.preset }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [Custom, Bandscope, Broadcast, Basic, RescueOps, Game]
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    - name: Compile firmware
+    - name: Install Toolchain
       run: |
-        chmod +x compile-with-docker.sh
-        ./compile-with-docker.sh
+        sudo apt-get update
+        sudo apt-get install -y gcc-arm-none-eabi cmake ninja-build python3-venv
 
-    - name: Upload firmware artifact
+    - name: Setup Python Environment
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Configure and Build
+      run: |
+        source .venv/bin/activate
+        cmake -B build/${{ matrix.preset }} --preset ${{ matrix.preset }}
+        cmake --build build/${{ matrix.preset }}
+
+    - name: Upload Packed Firmware
       uses: actions/upload-artifact@v4
       with:
-        name: firmware-artifact
-        path: compiled-firmware/f4hwn.packed.bin
+        name: firmware-${{ matrix.preset }}
+        path: build/${{ matrix.preset }}/*packed.bin
+        if-no-files-found: error

@@ -20,10 +20,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Toolchain
+    - name: Install System Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-arm-none-eabi cmake ninja-build python3-venv
+        sudo apt-get install -y cmake ninja-build python3-venv wget tar
+
+    - name: Install ARM Toolchain (14.3.rel1)
+      run: |
+        # 1. Download the toolchain
+        wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz
+        
+        # 2. Extract it
+        tar -xf arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz
+        
+        # 3. Add to GITHUB_PATH so subsequent steps can find 'arm-none-eabi-gcc'
+        echo "$PWD/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin" >> $GITHUB_PATH
+
+    - name: Verify Toolchain Version
+      run: arm-none-eabi-gcc --version
 
     - name: Setup Python Environment
       run: |
@@ -44,17 +58,16 @@ jobs:
           echo "Building Preset: $preset"
           echo "---------------------------------------------------"
           
-          # 1. PURGE
+          # 1. PURGE: Completely remove the build directory
           rm -rf build
           
-          # 2. CONFIGURE
+          # 2. CONFIGURE: Generate build files
           cmake -B build/$preset --preset $preset
           
-          # 3. BUILD
+          # 3. BUILD: Compile
           cmake --build build/$preset
           
-          # 4. COLLECT
-          # We use -v (verbose) to see what is being moved
+          # 4. COLLECT: Copy the packed bin to our 'dist' folder
           cp -v build/$preset/*packed.bin dist/
         done
 
